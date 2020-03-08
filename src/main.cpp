@@ -1,17 +1,15 @@
 /*
 This example uses FreeRTOS softwaretimers as there is no built-in Ticker library
 */
-
-#include <WiFi.h>
-#include <WiFiType.h>
-#include <esp_event.h>
 extern "C"
 {
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 }
 #include <AsyncMqttClient.h>
-
+#include <WiFi.h>
+#include <WiFiType.h>
+#include <esp_event.h>
 // WIFI SSID
 #define WIFI_SSID "206-public"
 // WIFI 密码
@@ -20,10 +18,14 @@ extern "C"
 #define MQTT_HOST IPAddress(192, 168, 2, 142)
 // MQTT 端口
 #define MQTT_PORT 1883
+// 下行
+const char *c2sTopic = "687giyhbU^&YYHOU/c2s";
+// 上行
+const char *s2cTopic = "687giyhbU^&YYHOU/s2c";
+// 状态
+const char *stateTopic = "687giyhbU^&YYHOU/state";
 
-AsyncMqttClient mqttClient;
-mqttClient.setClientId("esp321");
-// mqttClient.setCredentials()
+AsyncMqttClient asyncMqttClient;
 TimerHandle_t mqttReconnectTimer;
 TimerHandle_t wifiReconnectTimer;
 
@@ -35,13 +37,15 @@ void connectToWifi()
 
 void connectToMqtt()
 {
-  Serial.println("Connecting to MQTT...");
-  mqttClient.connect();
+  Serial.println("Connecting to mqtt server...");
+  asyncMqttClient.setClientId("687giyhbU^&YYHOU");
+  asyncMqttClient.setCredentials("Y&TOHUBo8yhiol&UJ)", "&UNBkjL63541tgHB");
+  asyncMqttClient.connect();
 }
 
 void WiFiEvent(WiFiEvent_t event)
 {
-  Serial.printf("[WiFi-event] event: %d\n", event);
+  // Serial.printf("[WiFi-event] event: %d\n", event);
   switch (event)
   {
   case SYSTEM_EVENT_STA_GOT_IP:
@@ -52,35 +56,30 @@ void WiFiEvent(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     Serial.println("WiFi lost connection");
-    xTimerStop(mqttReconnectTimer, 0); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
+    // 当WIFI链接失败的时候,需要停止MQTT的连接定时器
+    xTimerStop(mqttReconnectTimer, 0);
     xTimerStart(wifiReconnectTimer, 0);
     break;
   default:
     break;
   }
 }
-
+/**
+ * 
+ * MQtt连接成功以后,订阅s2c,QOS=2
+ * 
+ */
 void onMqttConnect(bool sessionPresent)
 {
-  Serial.println("Connected to MQTT.");
-  Serial.print("Session present: ");
+  Serial.print("Connected to MQTT;Session present:");
   Serial.println(sessionPresent);
-  uint16_t packetIdSub = mqttClient.subscribe("test/lol", 2);
-  Serial.print("Subscribing at QoS 2, packetId: ");
-  Serial.println(packetIdSub);
-  mqttClient.publish("test/lol", 0, true, "test 1");
-  Serial.println("Publishing at QoS 0");
-  uint16_t packetIdPub1 = mqttClient.publish("test/lol", 1, true, "test 2");
-  Serial.print("Publishing at QoS 1, packetId: ");
-  Serial.println(packetIdPub1);
-  uint16_t packetIdPub2 = mqttClient.publish("test/lol", 2, true, "test 3");
-  Serial.print("Publishing at QoS 2, packetId: ");
-  Serial.println(packetIdPub2);
+  asyncMqttClient.subscribe(s2cTopic, 2);
+  // asyncMqttClient.publish("test/lol", 0, true, "test 1");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 {
-  Serial.println("Disconnected from MQTT.");
+  Serial.println("Disconnected from MQTT server.");
 
   if (WiFi.isConnected())
   {
@@ -88,66 +87,49 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
   }
 }
 
-void onMqttSubscribe(uint16_t packetId, uint8_t qos)
-{
-  Serial.println("Subscribe acknowledged.");
-  Serial.print("  packetId: ");
-  Serial.println(packetId);
-  Serial.print("  qos: ");
-  Serial.println(qos);
-}
+// void onMqttSubscribe(uint16_t packetId, uint8_t qos)
+// {
+//   Serial.println("Subscribe acknowledged.");
+//   Serial.print("  packetId: ");
+//   Serial.println(packetId);
+//   Serial.print("  qos: ");
+//   Serial.println(qos);
+// }
 
-void onMqttUnsubscribe(uint16_t packetId)
-{
-  Serial.println("Unsubscribe acknowledged.");
-  Serial.print("  packetId: ");
-  Serial.println(packetId);
-}
+// void onMqttUnsubscribe(uint16_t packetId)
+// {
+//   Serial.println("Unsubscribe acknowledged.");
+//   Serial.print("  packetId: ");
+//   Serial.println(packetId);
+// }
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
 {
-  Serial.println("Publish received.");
-  Serial.print("  topic: ");
-  Serial.println(topic);
-  Serial.print("  qos: ");
-  Serial.println(properties.qos);
-  Serial.print("  dup: ");
-  Serial.println(properties.dup);
-  Serial.print("  retain: ");
-  Serial.println(properties.retain);
-  Serial.print("  len: ");
-  Serial.println(len);
-  Serial.print("  index: ");
-  Serial.println(index);
-  Serial.print("  total: ");
-  Serial.println(total);
+  Serial.print("Data received:");
+  Serial.println(payload);
 }
 
 void onMqttPublish(uint16_t packetId)
 {
-  Serial.println("Publish acknowledged.");
-  Serial.print("  packetId: ");
-  Serial.println(packetId);
+  Serial.println("Publish successfully.");
 }
 
 void setup()
 {
   Serial.begin(115200);
-  Serial.println();
-  Serial.println();
-
+  Serial.println("EZlinker sdk V0.1");
   mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
   wifiReconnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
 
   WiFi.onEvent(WiFiEvent);
 
-  mqttClient.onConnect(onMqttConnect);
-  mqttClient.onDisconnect(onMqttDisconnect);
-  mqttClient.onSubscribe(onMqttSubscribe);
-  mqttClient.onUnsubscribe(onMqttUnsubscribe);
-  mqttClient.onMessage(onMqttMessage);
-  mqttClient.onPublish(onMqttPublish);
-  mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+  asyncMqttClient.onConnect(onMqttConnect);
+  asyncMqttClient.onDisconnect(onMqttDisconnect);
+  // asyncMqttClient.onSubscribe(onMqttSubscribe);
+  // asyncMqttClient.onUnsubscribe(onMqttUnsubscribe);
+  asyncMqttClient.onMessage(onMqttMessage);
+  asyncMqttClient.onPublish(onMqttPublish);
+  asyncMqttClient.setServer(MQTT_HOST, MQTT_PORT);
 
   connectToWifi();
 }
