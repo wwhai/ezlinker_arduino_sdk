@@ -7,9 +7,11 @@ extern "C"
 #include "freertos/timers.h"
 }
 #include <AsyncMqttClient.h>
+#include <EEPROM.h>
 #include <WiFi.h>
 #include <WiFiType.h>
 #include <esp_event.h>
+#include <string.h>
 // WIFI SSID
 #define WIFI_SSID "206-public"
 // WIFI 密码
@@ -24,7 +26,21 @@ const char *c2sTopic = "687giyhbU^&YYHOU/c2s";
 const char *s2cTopic = "687giyhbU^&YYHOU/s2c";
 // 状态
 const char *stateTopic = "687giyhbU^&YYHOU/state";
-
+// 系统配置用的结构体
+typedef struct
+{
+  // MQTT端口
+  int port;
+  // 服务器地址
+  char host[16];
+  // MQTT ClientId
+  char clientId[64];
+  // MQTT 用户名
+  char username[64];
+  // MQTT密码
+  char password[64];
+} SystemConfig;
+//
 AsyncMqttClient asyncMqttClient;
 TimerHandle_t mqttReconnectTimer;
 TimerHandle_t wifiReconnectTimer;
@@ -116,6 +132,31 @@ void onMqttPublish(uint16_t packetId)
 
 void setup()
 {
+  SystemConfig cfg;
+  // Host
+  strcpy(cfg.host, "127.0.0.1");
+  // 端口
+  cfg.port = 1883;
+  // 客户端ID
+  strcpy(cfg.clientId, "clientid");
+  // MQTT 用户名
+  strcpy(cfg.username, "username");
+  // MQTT密码
+  strcpy(cfg.password, "password");
+  // 构建保存到ROM的字符串
+  String sc = String();
+  sc.concat(String(cfg.port));
+  sc.concat(String(cfg.host));
+  sc.concat(String(cfg.clientId));
+  sc.concat(String(cfg.username));
+  sc.concat(String(cfg.password));
+
+  EEPROM.begin(sc.length());
+  for (size_t i = 0; i < sc.length(); i++)
+  {
+    EEPROM.write(i, sc.charAt(i));
+  }
+
   Serial.begin(115200);
   Serial.println("EZlinker sdk V0.1");
   mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
