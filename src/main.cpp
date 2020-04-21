@@ -41,6 +41,7 @@ void setup()
 {
 
   Serial.begin(115200);
+  Serial.println();
   Serial.println("Mqtt client started on esp32-dev");
   mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
   wifiReconnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
@@ -67,8 +68,17 @@ void setup()
   connectToWifi();
   // 连接成功回调
   asyncMqttClient.onConnect([](bool sessionPresent) {
-    Serial.println("Connected to MQTT;Session present is:");
-    Serial.print(sessionPresent);
+    Serial.print("Connected to mqtt server success,session present is:");
+
+    if (sessionPresent == 0)
+    {
+      Serial.println("false");
+    }
+
+    if (sessionPresent == 1)
+    {
+      Serial.println("true");
+    }
 
     asyncMqttClient.subscribe(s2cTopic, 2);
   });
