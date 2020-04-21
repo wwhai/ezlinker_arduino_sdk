@@ -93,8 +93,8 @@ void setup()
   });
   // 消息到达回调
   asyncMqttClient.onMessage([](char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
-    Serial.println("Message received:");
-    Serial.print(payload);
+    Serial.print("Message received:");
+    Serial.println(payload);
   });
   // 发送成功回调
   asyncMqttClient.onPublish([](uint16_t packetId) {
