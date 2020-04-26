@@ -12,7 +12,6 @@ extern "C"
 #include <WiFiType.h>
 #include <esp_event.h>
 #include <string.h>
-#include <ArduinoLog.h>
 #include "config.h"
 #include "util.cpp"
 // 全局MQTT客户端
