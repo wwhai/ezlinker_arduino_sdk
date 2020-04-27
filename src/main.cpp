@@ -8,18 +8,18 @@ extern "C"
 }
 #include <AsyncMqttClient.h>
 
+#include "config.h"
+#include "util.cpp"
 #include <WiFi.h>
 #include <WiFiType.h>
 #include <esp_event.h>
 #include <string.h>
-#include "config.h"
-#include "util.cpp"
 // 全局MQTT客户端
 AsyncMqttClient asyncMqttClient;
 // MQTT重新连接定时器
-TimerHandle_t mqttReconnectTimer;
+TimerHandle_t wifiConnectTimer;
 // WIFI重新连接定时器
-TimerHandle_t wifiReconnectTimer;
+TimerHandle_t mqttConnectTimer;
 
 void connectToWifi()
 {
@@ -29,11 +29,14 @@ void connectToWifi()
 
 void connectToMqtt()
 {
-  Serial.println("Connecting to mqtt server...");
-  asyncMqttClient.setServer(MQTT_HOST, MQTT_PORT);
-  asyncMqttClient.setClientId(clientId);
-  asyncMqttClient.setCredentials(username, password);
-  asyncMqttClient.connect();
+  if (WiFi.isConnected())
+  {
+    Serial.println("Connecting to mqtt server...");
+    asyncMqttClient.setServer(MQTT_HOST, MQTT_PORT);
+    asyncMqttClient.setClientId(clientId);
+    asyncMqttClient.setCredentials(username, password);
+    asyncMqttClient.connect();
+  }
 }
 
 void setup()
@@ -42,8 +45,8 @@ void setup()
   Serial.begin(115200);
   Serial.println();
   Serial.println("Mqtt client started on esp32-dev");
-  mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
-  wifiReconnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
+  mqttConnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
+  wifiConnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
   // 监控WIFI事件
   WiFi.onEvent([](WiFiEvent_t event) {
     switch (event)
@@ -51,43 +54,40 @@ void setup()
     case SYSTEM_EVENT_STA_GOT_IP:
       Serial.print("WiFi connected IP address is :");
       Serial.println(WiFi.localIP());
-      connectToMqtt();
+      xTimerStop(wifiConnectTimer, 0);
+      xTimerStart(mqttConnectTimer, 0);
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
       Serial.println("WiFi lost connection");
       // 当WIFI链接失败的时候,需要停止MQTT的连接定时器
-      xTimerStop(mqttReconnectTimer, 0);
-      xTimerStart(wifiReconnectTimer, 0);
+      xTimerStop(mqttConnectTimer, 0);
+      // 然后开启重新连接WIFI的定时器
+      xTimerStart(wifiConnectTimer, 0);
       break;
     default:
       break;
     }
   });
   // 连接WIFI
-  connectToWifi();
+  // connectToWifi();
   // 连接成功回调
   asyncMqttClient.onConnect([](bool sessionPresent) {
-    Serial.print("Connected to mqtt server success,session present is:");
-
-    if (sessionPresent == 0)
-    {
-      Serial.println("false");
-    }
-
-    if (sessionPresent == 1)
-    {
-      Serial.println("true");
-    }
-
     asyncMqttClient.subscribe(s2cTopic, 2);
+    xTimerStop(mqttConnectTimer, 0);
+    xTimerStop(wifiConnectTimer, 0);
   });
   // 离线回调
   asyncMqttClient.onDisconnect([](AsyncMqttClientDisconnectReason reason) {
     Serial.println("Disconnected from MQTT server.");
     // 当WIFI连接成功以后再连接MQTT
+    // 当WIFI连接成功以后再连接MQTT
     if (WiFi.isConnected())
     {
-      xTimerStart(mqttReconnectTimer, 0);
+      xTimerStart(mqttConnectTimer, 0);
+    }
+    else
+    {
+      xTimerStart(wifiConnectTimer, 0);
     }
   });
   // 消息到达回调
@@ -99,6 +99,8 @@ void setup()
   asyncMqttClient.onPublish([](uint16_t packetId) {
 
   });
+  // start
+  xTimerStart(wifiConnectTimer, 0);
 }
 
 void loop()
