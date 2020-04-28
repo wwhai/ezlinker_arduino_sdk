@@ -65,8 +65,6 @@ void setup()
     }
   });
   // 连接WIFI
-  // connectToWifi();
-  // 连接成功回调
   asyncMqttClient.onConnect([](bool sessionPresent) {
     Serial.print("Success to connect mqtt server:");
     Serial.println(MQTT_HOST);

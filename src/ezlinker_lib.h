@@ -39,10 +39,10 @@ private:
 private:
     void connectToWifi()
     {
-        sleep(2);
-        Serial.println("Connecting to Wi-Fi...");
-        WiFi.onEvent(this->onWifiEvent);
-        WiFi.begin(this->ssid.c_str(), this->wifiPassword.c_str());
+        Serial.print("Try to connect Wi-Fi:");
+        Serial.println(WIFI_SSID);
+        sleep(3);
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     }
 
     void onWifiEvent(WiFiEvent_t event)
@@ -50,8 +50,9 @@ private:
         switch (event)
         {
         case SYSTEM_EVENT_STA_GOT_IP:
-            Serial.print("WiFi connected IP address is :");
+            Serial.print("WiFi connected success IP is :");
             Serial.println(WiFi.localIP());
+            sleep(1);
             connectToMqtt();
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -68,14 +69,12 @@ private:
         // WIFI连接成功以后再连接MQTT
         if (WiFi.isConnected())
         {
-            Serial.println("Connecting to mqtt server...");
-            asyncMqttClient.setServer(this->host, this->port);
-            asyncMqttClient.setClientId(this->clientId.c_str());
-            asyncMqttClient.setCredentials(this->username.c_str(), this->password.c_str());
-            asyncMqttClient.onConnect = this->onConnect;
-            asyncMqttClient.onMessage = this->onMessage;
-            asyncMqttClient.onDisconnect = this->onDisconnect;
-            asyncMqttClient.onPublish = this->onPublish;
+            Serial.print("Try to connect mqtt server:");
+            Serial.println(MQTT_HOST.toString());
+            sleep(3);
+            asyncMqttClient.setServer(MQTT_HOST, MQTT_PORT);
+            asyncMqttClient.setClientId(clientId);
+            asyncMqttClient.setCredentials(username, password);
             asyncMqttClient.connect();
         }
     }
