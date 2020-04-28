@@ -2,9 +2,9 @@
 #define __CONFIG_H__
 //******************NETWORK-CONFIG*****************
 // WIFI SSID
-#define WIFI_SSID "OrayBox-1D48"
+#define WIFI_SSID "Air-IQ"
 // WIFI 密码
-#define WIFI_PASSWORD "665544332211"
+#define WIFI_PASSWORD "00000000"
 //*****************SERVER-CONFIG*******************
 #define MQTT_HOST IPAddress(10, 168, 1, 159)
 // MQTT 端口
